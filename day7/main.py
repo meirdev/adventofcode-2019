@@ -1,3 +1,4 @@
+import collections
 import enum
 import itertools
 import operator
@@ -23,6 +24,11 @@ class Parameter(enum.IntEnum):
     C = 2
 
 
+class ParameterMode(enum.StrEnum):
+    POSITION = "0"
+    IMMEDIATE = "1"
+
+
 OP_FN = {
     Op.ADD: operator.add,
     Op.MUL: operator.mul,
@@ -40,88 +46,60 @@ def parse_input(input: str) -> list[int]:
 class VM:
     def __init__(self, opcodes: list[int]) -> None:
         self._queue: queue.Queue[int] = queue.Queue()
-        self._opcodes = opcodes[:]
+
+        memory = collections.defaultdict(int)
+
+        for i, val in enumerate(opcodes):
+            memory[i] = val
+
+        self._memory = memory
         self._iter = iter(self)
 
     def __next__(self) -> int:
         return next(self._iter)
 
     def __iter__(self) -> Iterator[int]:
-        opcodes = self._opcodes
+        memory = self._memory
 
         i = 0
 
-        is_immediate = lambda val: val == "1"
-
-        while i < len(opcodes):
-            opcode = str(opcodes[i]).zfill(5)
-
-            """
-            ABCDE
-
-            DE - two-digit opcode,      02 == opcode 2
-            C - mode of 1st parameter,  0 == position mode
-            B - mode of 2nd parameter,  1 == immediate mode
-            A - mode of 3rd parameter,  0 == position mode,
-            """
+        while i < len(memory):
+            opcode = str(memory[i]).zfill(5)
 
             instruction = Op(int(opcode[3:]))
 
-            if instruction in [Op.ADD, Op.MUL]:
-                c = (
-                    opcodes[i + 1]
-                    if is_immediate(opcode[Parameter.C])
-                    else opcodes[opcodes[i + 1]]
-                )
-                b = (
-                    opcodes[i + 2]
-                    if is_immediate(opcode[Parameter.B])
-                    else opcodes[opcodes[i + 2]]
-                )
+            parameters = []
 
-                opcodes[opcodes[i + 3]] = OP_FN[instruction](c, b)
+            for param, rel in zip((Parameter.C, Parameter.B, Parameter.A), (1, 2, 3)):
+                if opcode[param] == ParameterMode.IMMEDIATE:
+                    parameters.append(i + rel)
+                elif opcode[param] == ParameterMode.POSITION:
+                    parameters.append(memory[i + rel])
+
+            if instruction in [Op.ADD, Op.MUL]:
+                memory[parameters[2]] = OP_FN[instruction](
+                    memory[parameters[0]], memory[parameters[1]]
+                )
 
                 i += 4
             elif instruction == Op.INPUT:
-                opcodes[opcodes[i + 1]] = self._queue.get()
+                memory[parameters[0]] = self._queue.get()
 
                 i += 2
             elif instruction == Op.OUTPUT:
-                c = (
-                    opcodes[i + 1]
-                    if is_immediate(opcode[Parameter.C])
-                    else opcodes[opcodes[i + 1]]
-                )
-
-                yield c
+                yield memory[parameters[0]]
 
                 i += 2
             elif instruction in [Op.JUMP_IF_TRUE, Op.JUMP_IF_FALSE]:
-                c = (
-                    opcodes[i + 1]
-                    if is_immediate(opcode[Parameter.C])
-                    else opcodes[opcodes[i + 1]]
+                i = (
+                    memory[parameters[1]]
+                    if OP_FN[instruction](memory[parameters[0]], 0)
+                    else i + 3
                 )
-                b = (
-                    opcodes[i + 2]
-                    if is_immediate(opcode[Parameter.B])
-                    else opcodes[opcodes[i + 2]]
-                )
-
-                i = b if OP_FN[instruction](c, 0) else i + 3
             elif instruction in [Op.LESS_THEN, Op.EQUAL]:
-                c = (
-                    opcodes[i + 1]
-                    if is_immediate(opcode[Parameter.C])
-                    else opcodes[opcodes[i + 1]]
+                memory[parameters[2]] = int(
+                    OP_FN[instruction](memory[parameters[0]], memory[parameters[1]])
                 )
-                b = (
-                    opcodes[i + 2]
-                    if is_immediate(opcode[Parameter.B])
-                    else opcodes[opcodes[i + 2]]
-                )
-
-                opcodes[opcodes[i + 3]] = OP_FN[instruction](c, b)
 
                 i += 4
             elif instruction == Op.HALT:
