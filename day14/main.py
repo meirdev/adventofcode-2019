@@ -16,6 +16,8 @@ class Chemical(NamedTuple):
 
 Reactions: TypeAlias = DefaultDict[Chemical, list[Chemical]]
 
+ReactionsDict: TypeAlias = dict[str, tuple[int, list[Chemical]]]
+
 
 def parse_input(input: str) -> Reactions:
     reactions: Reactions = collections.defaultdict(list)
@@ -28,8 +30,11 @@ def parse_input(input: str) -> Reactions:
     return reactions
 
 
+Surplus: TypeAlias = DefaultDict[str, int]
+
+
 def calc_ore(
-    reactions, target: str, target_amount: int, surplus: DefaultDict[str, int]
+    reactions: ReactionsDict, target: str, target_amount: int, surplus: Surplus
 ):
     if target == "ORE":
         return target_amount
@@ -68,7 +73,7 @@ def part2(input: str) -> int:
         reactions_name_dict, "FUEL", 1, collections.defaultdict(int)
     )
     fuel = 0
-    surplus: DefaultDict[str, int] = collections.defaultdict(int)
+    surplus: Surplus = collections.defaultdict(int)
     while ore and target_amount:
         new_surplus = collections.defaultdict(int, surplus)
         ore_used = calc_ore(reactions_name_dict, "FUEL", target_amount, new_surplus)
