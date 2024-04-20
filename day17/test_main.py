@@ -6,4 +6,4 @@ def test_input():
         input = file.read()
 
     assert part1(input) == 8928
-    assert part2(input) == 0
+    assert part2(input) == 880360
